@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+		<head>
+				<meta charset="UTF-8" />
+				<meta
+						name="viewport"
+						content=""
+						width="device-width,"
+						initial-scale="1.0"
+				/>
+				<meta http-equiv="X-UA-Compatible" content="ie=edge" />
+				<title>Testiing APi Pulls html file</title>
+				<script src="https://cdn.jsdelivr.net/npm/chart.js@3.8.0/dist/chart.min.js"></script>
+				<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+		</head>
+
+		<!--for some reason it crashes without a paragraph tag?-->
+		<p> </p>
+		
+		<body>
+				<canvas id="chart" width="800" height="400"></canvas>
+				<script>
+					
+					let theData = {};
+						merged_list = {};
+					const gas_url = 'https://peaker99.herokuapp.com/';
+
+					//pull data off peaker's api
+					async function getData(url) {
+						const response = await fetch(url);
+						//console.log(response);
+        				const data = await response.json();
+						//console.log(data.response);
+						theData = data.data;
+						console.log(theData);
+						return theData;
+						}
+						
+					
+					//splits the dataframe back to 3 separate arrays and then uses them
+					//to create a new chart
+					async function splitAndChart() {
+						const inputTable = await getData(gas_url);
+						//console.table(inputTable);
+						const x = [],
+						y1 = [],
+						y2 = [],
+						y3 = [],
+						price_delta = [];
+						//let price_delta = 0;
+
+						//for each row of data, add period, gas, and dzl price to a simple array for input to chartjs
+						inputTable.forEach((row) => {
+						const columns = row;
+						//console.log(row);
+						startDate = new Date('2016-01');
+						if (new Date(columns.period) >= startDate) {
+							//testDate = new Date(columns.period);
+							//console.log(testDate);
+							//console.log(columns.period);
+							const date = columns.period;
+							x.push(date);
+							const gas_price = columns.PRICE_GAS;
+							y1.push(gas_price);
+							const dzl_price = columns.PRICE_DZL;
+							y2.push(dzl_price);
+							y3.push([gas_price, dzl_price]);
+							//add dzl gas spread in addition to delta
+							//make additional tooltip
+							price_delta.push(dzl_price - gas_price);
+						}
+						});
+						console.log(x, y1, y2);
+
+						const ctx = document.getElementById('chart').getContext('2d');
+						const myChart = new Chart(ctx, {
+						type: 'line',
+						data: {
+							labels: x,
+							datasets: [
+							{
+								label: 'Natural Gas DGE Price',
+								data: y1,
+								backgroundColor: 'rgba(50, 150, 255, 0.2)',
+								borderColor: 'rgba(50, 150, 255, 1)',
+								borderWidth: 1,
+							},
+							{
+								label: 'Diesel Gallon Price',
+								data: y2,
+								backgroundColor: 'rgba(255, 20, 30, 0.2)',
+								borderColor: 'rgba(255, 99, 132, 1)',
+								borderWidth: 1,
+							},
+							{
+								label: 'Price Delta',
+								data: y3,
+								type: 'bar',
+								// this dataset is drawn on top
+								order: 1,
+							},
+							],
+						},
+						options: {
+							plugins: {
+							tooltip: {
+								callbacks: {
+								title: function (context) {
+									//console.log(context[0].label)
+									const d = context[0].label;
+									console.log(d);
+									const formattedDate = d.toLocaleString([], {
+									year: 'numeric',
+									month: 'short',
+									day: 'numeric',
+									hour: '2-digit',
+									minute: '2-digit',
+									hour12: true,
+									});
+									return formattedDate;
+								},
+								label: function (context) {
+									let label = context.dataset.label || '';
+									let tempDelta = 0;
+
+									if (label) {
+									label += ': ';
+									}
+									if (context.dataset.label === 'Price Delta') {
+									tempDelta = y2[context.dataIndex] - y1[context.dataIndex];
+									if (context.parsed.y !== null) {
+										label += new Intl.NumberFormat('en-US', {
+										style: 'currency',
+										currency: 'USD',
+										}).format(tempDelta);
+										label +=
+										',  DZL: ' +
+										new Intl.NumberFormat('en-US', {
+											style: 'currency',
+											currency: 'USD',
+										}).format(y2[context.dataIndex]);
+										label +=
+										',  GAS: ' +
+										new Intl.NumberFormat('en-US', {
+											style: 'currency',
+											currency: 'USD',
+										}).format(y1[context.dataIndex]);
+									}
+									} else if (context.parsed.y !== null) {
+									label += new Intl.NumberFormat('en-US', {
+										style: 'currency',
+										currency: 'USD',
+									}).format(context.parsed.y);
+									}
+
+									return label;
+								},
+								},
+							},
+							},
+
+							scales: {
+							x: {
+								type: 'time',
+								time: {
+								displayFormats: {
+									year: 'yyyy',
+								},
+								},
+							},
+							y: {
+								ticks: {
+								callback: function (value, index, ticks) {
+									return '$ ' + value;
+								},
+								},
+							},
+							},
+						},
+						});
+
+						return x, y1, y2;
+					}
+
+					splitAndChart();
+
+					
+				</script>
+		</body>
+</html>
